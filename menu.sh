@@ -192,7 +192,7 @@ deploy_sillytavern() {
     if confirm_choice "部署前是否更新系统包? (y/n): "; then
         print_section "更新系统包"
         log_notice "正在更新系统包，请稍候..."
-        if ! (pkg update && pkg upgrade -y); then
+        if ! (pkg update -y && pkg upgrade -y); then
             log_error "❌ 系统包更新失败！"
             if ! confirm_choice "是否继续部署? (y/N): "; then
                 log_notice "取消部署，返回主菜单"
