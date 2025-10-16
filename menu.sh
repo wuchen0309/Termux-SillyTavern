@@ -345,7 +345,7 @@ show_menu() {
     echo -e "${MAGENTA}${BOLD}3. 更新酒馆${NC}"
     echo -e "${BRIGHT_RED}${BOLD}4. 删除酒馆${NC}"
     echo -e "${BRIGHT_CYAN}${BOLD}5. 备份酒馆${NC}"
-    echo -e "${CYAN}${BOLD}=================================${NC}"
+    echo -e "${CYAN}${BOLD}==================================${NC}"
     log_prompt "请选择操作 (0-5): "
 }
 
