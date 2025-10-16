@@ -329,7 +329,7 @@ backup_sillytavern() {
         return 1
     fi
 
-    chmod +x "$BACKUP_SCRIPT" && "$BACKUP_SCRIPT"
+    bash "$BACKUP_SCRIPT"
 }
 
 ###############################################
