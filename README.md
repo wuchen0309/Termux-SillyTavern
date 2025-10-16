@@ -1,12 +1,23 @@
+<div align="center">
+
 # Termux-SillyTavern
 
-一个专为 Termux 设计的 SillyTavern 一键式管理脚本，让部署、管理和维护你的酒馆变得前所未有的简单。
+**一个专为 Termux 设计的 SillyTavern 一键式管理脚本，让部署、管理和维护你的酒馆变得前所未有的简单。**
 
-## ✨ 特性
+[![GitHub Stars](https://img.shields.io/github/stars/print-yuhuan/SillyTavern-Termux.svg?style=for-the-badge&logo=github)](https://github.com/wuchen0309/SillyTavern-Termux)
+[![License](https://img.shields.io/badge/License-Custom%20NC-blue.svg?style=for-the-badge)](https://github.com/wuchen0309/Termux-SillyTavern/blob/main/LICENSE)
+[![Version](https://img.shields.io/badge/Version-2025.10.16-brightgreen.svg?style=for-the-badge)](https://github.com/wuchen0309/Termux-SillyTavern/blob/main/menu.sh)
+[![Platform](https://img.shields.io/badge/Platform-Termux%20(Android)-orange.svg?style=for-the-badge&logo=android)](https://termux.dev/cn/index.html)
+
+</div>
+
+---
+
+## 📖 项目简介
 
 - 🚀 **一键部署**：自动克隆 SillyTavern 仓库，配置环境。
 - 📋 **交互式菜单**：直观的文本菜单，操作一目了然。
-- 🔧 **智能依赖管理**：自动检测并安装 `git`, `nodejs-lts`, `zip` 等必要工具。
+- 🔧 **智能依赖管理**：自动检测并安装`git`, `nodejs-lts`, `zip`等必要工具。
 - 💾 **内置数据备份**：一键备份你的酒馆数据，无需手动操作。
 - 🎨 **终端美化**：首次运行自动下载并应用更美观的等宽字体。
 - 🧹 **无路径依赖**：所有操作均使用绝对路径，无需关心当前目录。
@@ -50,19 +61,19 @@ curl -o $HOME/menu.sh "https://raw.githubusercontent.com/wuchen0309/Termux-Silly
   - 如果已存在，会询问是否**重新部署**（将删除旧目录并重新克隆）。
   - 可选更新系统包。
   - 可选检查并安装依赖工具。
-  - 从 GitHub 克隆最新的 SillyTavern `release` 分支。
+  - 从 GitHub 克隆最新的SillyTavern `release`分支。
 
 - **启动酒馆**
-  - 直接执行 `$HOME/SillyTavern/start.sh`，无需切换目录。
+  - 直接执行`$HOME/SillyTavern/start.sh`，无需切换目录。
 
 - **更新酒馆**
-  - 使用 `git pull` 更新本地 SillyTavern 仓库到最新版。
+  - 使用`git pull`更新本地 SillyTavern 仓库到最新版。
 
 - **删除酒馆**
-  - 安全删除整个 SillyTavern 目录，删除前会二次确认。
+  - 安全删除整个SillyTavern目录，删除前会二次确认。
 
 - **备份酒馆**
-  - 将 `$HOME/SillyTavern/data/default-user/` 目录打包成带时间戳的 zip 文件，并保存到手机内部存储的 `MySillyTavernBackups` 文件夹中。
+  - 将`$HOME/SillyTavern/data/default-user/`目录打包成带时间戳的 zip 文件，并保存到手机内部存储的`MySillyTavernBackups`文件夹中。
 
 ---
 
