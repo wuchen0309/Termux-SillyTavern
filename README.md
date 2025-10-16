@@ -68,10 +68,6 @@ curl -o $HOME/menu.sh "https://raw.githubusercontent.com/wuchen0309/Termux-Silly
 bash $HOME/menu.sh
 ```
 
-2.  完成后，**完全关闭** Termux 应用（从后台划掉），然后重新打开。
-
-之后每次新打开 Termux 都会自动运行脚本。
-
 ## ⚡ 更新脚本
 
 脚本版本更新时，只需重新执行一遍上面的**安装命令**即可。它会自动覆盖旧版本，无需手动卸载。
