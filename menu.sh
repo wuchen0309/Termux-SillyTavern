@@ -22,6 +22,8 @@ REPO_BRANCH="release"
 SILLYTAVERN_DIR="$HOME/SillyTavern"
 START_SCRIPT="$SILLYTAVERN_DIR/start.sh"
 BACKUP_SCRIPT="$HOME/backup_sillytavern.sh"
+FONT_URL="https://raw.githubusercontent.com/wuchen0309/Termux-SillyTavern/main/font.ttf"
+FONT_PATH="$HOME/.termux/font.ttf"
 REQUIRED_TOOLS=(git nodejs-lts zip)
 
 # ==== 日志 / 输出工具 ====
@@ -54,6 +56,35 @@ press_any_key() {
 }
 
 # ==== 环境准备函数 ====
+ensure_termux_font() {
+    if [ -f "$FONT_PATH" ]; then
+        log_success "字体文件已存在，跳过下载"
+        return 0
+    fi
+
+    print_section "检查并下载字体文件"
+    log_notice "字体文件不存在，正在下载..."
+
+    # 确保目录存在
+    mkdir -p "$(dirname "$FONT_PATH")"
+
+    if curl -L --progress-bar -o "$FONT_PATH" "$FONT_URL"; then
+        log_success "字体文件下载完成！"
+        
+        # 尝试重新加载 Termux 设置以立即应用字体
+        if command -v termux-reload-settings >/dev/null 2>&1; then
+            log_notice "正在应用新字体..."
+            termux-reload-settings
+            log_success "新字体已应用！"
+        else
+            log_warn "termux-reload-settings 命令不可用，请重启 Termux 以应用新字体。"
+        fi
+    else
+        log_error "字体文件下载失败！"
+        return 1
+    fi
+}
+
 ensure_termux_storage() {
     local shared_dir="$HOME/storage/shared"
     if [ -d "$shared_dir" ]; then
@@ -320,6 +351,7 @@ show_menu() {
 
 main() {
     clear
+    ensure_termux_font
     ensure_termux_storage
     ensure_backup_script
 
