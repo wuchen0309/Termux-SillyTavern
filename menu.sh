@@ -116,8 +116,8 @@ src_dir="$HOME/SillyTavern/data/default-user/"
 tmp_dir="$HOME/tmp_sillytavern_backup_copy"
 backup_dir_base="$HOME/storage/shared/"
 backup_dir_name="MySillyTavernBackups"
-backup_dir="${backup_dir_base}${backup_dir_name}"
 folder_name_in_zip="default-user"
+backup_dir="${backup_dir_base}${backup_dir_name}"
 timestamp=$(date +%Y%m%d_%H%M%S)
 backup_name="sillytavern_backup_$timestamp.zip"
 
