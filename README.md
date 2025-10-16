@@ -48,7 +48,7 @@ curl -o $HOME/menu.sh "https://raw.githubusercontent.com/wuchen0309/Termux-Silly
 
 ## ⚙️ 启动脚本
 
-### 开机自启
+### 🔑 开机自启
 
 如果你希望每次打开 Termux 都自动运行此脚本，可以进行如下设置：
 
@@ -60,7 +60,7 @@ curl -o $HOME/menu.sh "https://raw.githubusercontent.com/wuchen0309/Termux-Silly
 
 之后每次新打开 Termux 都会自动运行脚本。
 
-### 手动启动
+### 🗝️ 手动启动
 
 如果你没有设置自启动，或者临时需要手动运行，只需在 Termux 中执行以下命令即可：
 
