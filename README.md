@@ -41,7 +41,7 @@
 复制以下命令到 Termux 中执行即可：
 
 ```
-curl -o $HOME/menu.sh "https://raw.githubusercontent.com/wuchen0309/Termux-SillyTavern/refs/heads/main/menu.sh" && chmod +x $HOME/menu.sh && bash $HOME/menu.sh
+curl -o $HOME/menu.sh "https://raw.githubusercontent.com/wuchen0309/Termux-SillyTavern/refs/heads/main/menu.sh" && chmod +x $HOME/menu.sh && $HOME/menu.sh
 ```
 
 脚本会自动完成环境检测、字体下载等初始化操作，然后你就能看到主菜单了！
@@ -54,7 +54,7 @@ curl -o $HOME/menu.sh "https://raw.githubusercontent.com/wuchen0309/Termux-Silly
 
 1.  执行以下命令，将启动命令写入 `$HOME/.bashrc` 文件：
     ```
-    echo 'bash $HOME/menu.sh' > $HOME/.bashrc
+    echo '$HOME/menu.sh' > $HOME/.bashrc
     ```
 2.  完成后，**完全关闭** Termux 应用（从后台划掉），然后重新打开。
 
@@ -65,7 +65,7 @@ curl -o $HOME/menu.sh "https://raw.githubusercontent.com/wuchen0309/Termux-Silly
 如果你没有设置自启动，或者临时需要手动运行，只需在 Termux 中执行以下命令即可：
 
 ```
-bash $HOME/menu.sh
+$HOME/menu.sh
 ```
 
 ## ⚡ 更新脚本
