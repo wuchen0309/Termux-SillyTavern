@@ -6,7 +6,7 @@
 
 [![GitHub Stars](https://img.shields.io/github/stars/wuchen0309/Termux-SillyTavern.svg?style=for-the-badge&logo=github)](https://github.com/wuchen0309/Termux-SillyTavern)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-blue.svg?style=for-the-badge)](https://github.com/wuchen0309/Termux-SillyTavern/blob/main/LICENSE)
-[![Version](https://img.shields.io/badge/Version-2025.10.16-brightgreen.svg?style=for-the-badge)](https://github.com/wuchen0309/Termux-SillyTavern/blob/main/menu.sh)
+[![Version](https://img.shields.io/badge/Version-2025.10.17-brightgreen.svg?style=for-the-badge)](https://github.com/wuchen0309/Termux-SillyTavern/blob/main/menu.sh)
 [![Platform](https://img.shields.io/badge/Platform-Termux%20(Android)-orange.svg?style=for-the-badge&logo=android)](https://termux.dev/cn/index.html)
 
 </div>
@@ -69,7 +69,7 @@ $HOME/menu.sh
 ```
 >**⚠️注意事项**：如果你通过编辑器手动修改了 `menu.sh` 文件，其执行权限会丢失。此时直接运行会报错：`Permission denied`。
 >必须先使用以下命令重新赋予其执行权限，然后再运行：
->chmod +x $HOME/menu.sh
+>`chmod +x $HOME/menu.sh`
 
 ## ⚡ 更新脚本
 
