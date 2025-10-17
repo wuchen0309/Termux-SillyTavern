@@ -67,6 +67,9 @@ curl -o $HOME/menu.sh "https://raw.githubusercontent.com/wuchen0309/Termux-Silly
 ```
 $HOME/menu.sh
 ```
+>**⚠️注意事项**：如果你通过编辑器手动修改了 `menu.sh` 文件，其执行权限会丢失。此时直接运行会报错：`Permission denied`。
+>必须先使用以下命令重新赋予其执行权限，然后再运行：
+>chmod +x $HOME/menu.sh
 
 ## ⚡ 更新脚本
 
