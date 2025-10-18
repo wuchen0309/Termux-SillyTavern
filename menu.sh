@@ -27,7 +27,8 @@ BACKUP_SCRIPT="$HOME/backup_sillytavern.sh"
 REQUIRED_TOOLS=(git nodejs-lts zip unzip)
 FONT_URL="https://raw.githubusercontent.com/wuchen0309/Termux-SillyTavern/main/font.ttf"
 FONT_PATH="$HOME/.termux/font.ttf"
-TARGET_VERSION=""
+BACKUP_DIR="$HOME/storage/shared/MySillyTavernBackups"
+TMP_RESTORE_DIR="$HOME/tmp_sillytavern_restore"
 
 # ==== 日志 / 输出工具 ====
 print_section()  { echo -e "${CYAN}${BOLD}==== $1 ====${NC}"; }
@@ -44,8 +45,7 @@ confirm_choice() {
     while true; do
         log_prompt "$prompt"
         read -r input
-        input=$(echo "$input" | tr '[:upper:]' '[:lower:]' | xargs)
-        case "$input" in
+        case "${input,,}" in
             y|yes) return 0 ;;
             n|no)  return 1 ;;
             *)     log_warn "请输入 y/yes 或 n/no！" ;;
@@ -60,19 +60,14 @@ press_any_key() {
 
 # ==== 环境准备函数 ====
 ensure_termux_font() {
-    if [ -f "$FONT_PATH" ]; then
-        log_success "字体文件已存在，跳过下载"
-        return 0
-    fi
+    [ -f "$FONT_PATH" ] && { log_success "字体文件已存在，跳过下载"; return 0; }
 
     print_section "检查并下载字体文件"
     log_notice "字体文件不存在，正在下载..."
-
     mkdir -p "$(dirname "$FONT_PATH")"
 
     if curl -L --progress-bar -o "$FONT_PATH" "$FONT_URL"; then
         log_success "字体文件下载完成！"
-        
         if command -v termux-reload-settings >/dev/null 2>&1; then
             log_notice "正在应用新字体..."
             termux-reload-settings
@@ -87,38 +82,29 @@ ensure_termux_font() {
 }
 
 ensure_termux_storage() {
-    local shared_dir="$HOME/storage/shared"
-    if [ -d "$shared_dir" ]; then
-        return 0
-    fi
+    [ -d "$HOME/storage/shared" ] && return 0
 
     log_warn "检测到共享存储目录不存在，正在设置存储权限..."
     termux-setup-storage
     log_hint "请在弹窗中授权存储权限，授权完成后按回车继续..."
     read -r
 
-    if [ ! -d "$shared_dir" ]; then
+    if [ ! -d "$HOME/storage/shared" ]; then
         log_error "错误：共享存储目录创建失败！请检查存储权限。"
         exit 1
     fi
-
     log_success "共享存储目录设置完成！"
 }
 
 ensure_backup_script() {
-    if [ -f "$BACKUP_SCRIPT" ]; then
-        return 0
-    fi
+    [ -f "$BACKUP_SCRIPT" ] && return 0
 
     log_notice "首次使用：正在创建备份脚本..."
     cat >"$BACKUP_SCRIPT"<<'EOF'
 #!/bin/bash
 src_dir="$HOME/SillyTavern/data/"
 tmp_dir="$HOME/tmp_sillytavern_backup_copy"
-backup_dir_base="$HOME/storage/shared/"
-backup_dir_name="MySillyTavernBackups"
-folder_name_in_zip="data"
-backup_dir="${backup_dir_base}${backup_dir_name}"
+backup_dir="$HOME/storage/shared/MySillyTavernBackups"
 timestamp=$(date +%Y%m%d_%H%M%S)
 backup_name="sillytavern_backup_$timestamp.zip"
 
@@ -126,20 +112,20 @@ echo "== 开始备份 SillyTavern 数据 =="
 echo "源目录: $src_dir"
 echo "备份目标目录: $backup_dir"
 
-[ ! -d "$src_dir" ]       && { echo "❌ 错误：源目录 '$src_dir' 不存在！"; exit 1; }
-[ ! -d "$backup_dir_base" ] && { echo "❌ 错误：Termux 存储链接目录 '$backup_dir_base' 不存在。"; exit 1; }
+[ ! -d "$src_dir" ] && { echo "❌ 错误：源目录 '$src_dir' 不存在！"; exit 1; }
+[ ! -d "$HOME/storage/shared" ] && { echo "❌ 错误：Termux 存储链接目录不存在。"; exit 1; }
 
-mkdir -p "$backup_dir" || { echo "❌ 错误：无法创建备份目标目录 '$backup_dir'！"; exit 1; }
+mkdir -p "$backup_dir" || { echo "❌ 错误：无法创建备份目标目录！"; exit 1; }
 rm -rf "$tmp_dir"
-mkdir -p "$tmp_dir" || { echo "❌ 错误：无法创建临时目录 '$tmp_dir'！"; exit 1; }
+mkdir -p "$tmp_dir" || { echo "❌ 错误：无法创建临时目录！"; exit 1; }
 
 echo "正在拷贝数据到临时目录..."
-cp -r "$src_dir" "$tmp_dir/$folder_name_in_zip" || { echo "❌ 拷贝失败！"; rm -rf "$tmp_dir"; exit 1; }
+cp -r "$src_dir" "$tmp_dir/data" || { echo "❌ 拷贝失败！"; rm -rf "$tmp_dir"; exit 1; }
 
-cd "$tmp_dir" || { echo "❌ 无法进入临时目录 '$tmp_dir'！"; rm -rf "$tmp_dir"; exit 1; }
+cd "$tmp_dir" || { echo "❌ 无法进入临时目录！"; rm -rf "$tmp_dir"; exit 1; }
 
 echo "正在压缩备份文件..."
-if zip -r "$backup_dir/$backup_name" "$folder_name_in_zip"; then
+if zip -r "$backup_dir/$backup_name" "data"; then
     echo "✅ 备份成功完成！备份文件保存至: $backup_dir/$backup_name"
 else
     echo "❌ 压缩失败！"
@@ -156,54 +142,26 @@ EOF
 
 check_tools() {
     print_section "检查必要工具"
-    declare -A tool_status
-    declare -A tool_commands=(
-        ["git"]="git"
-        ["nodejs-lts"]="nodejs-lts"
-        ["zip"]="zip"
-        ["unzip"]="unzip"
-    )
     local missing_tools=()
 
     for tool in "${REQUIRED_TOOLS[@]}"; do
-        local cmd="${tool_commands[$tool]}"
-        local detected=0
-
-        if [ -n "$cmd" ] && command -v "$cmd" >/dev/null 2>&1; then
-            detected=1
-        fi
-
-        if [ "$tool" = "nodejs-lts" ] && command -v node >/dev/null 2>&1; then
-            detected=1
-        fi
-
-        if [ $detected -eq 1 ]; then
+        local cmd="$tool"
+        [ "$tool" = "nodejs-lts" ] && cmd="node"
+        
+        if command -v "$cmd" >/dev/null 2>&1; then
             log_success "✓ ${tool} 已安装"
-            tool_status["$tool"]="installed"
         else
             log_warn "⚠ ${tool} 未安装，准备安装..."
-            tool_status["$tool"]="pending"
             missing_tools+=("$tool")
         fi
     done
 
     if [ ${#missing_tools[@]} -gt 0 ]; then
         log_notice "正在安装缺失的工具..."
-        if ! pkg install -y "${missing_tools[@]}"; then
-            log_error "✗ 工具安装失败"
-            return 1
-        fi
-        for tool in "${missing_tools[@]}"; do
-            tool_status["$tool"]="installed"
-        done
+        pkg install -y "${missing_tools[@]}" || { log_error "✗ 工具安装失败"; return 1; }
     fi
 
-    local installed=0
-    for status in "${tool_status[@]}"; do
-        [[ "$status" == "installed" ]] && ((installed++))
-    done
-    log_success "工具检查完成！已安装: ${installed} 个"
-    return 0
+    log_success "工具检查完成！已安装: ${#REQUIRED_TOOLS[@]} 个"
 }
 
 ###############################################
@@ -215,10 +173,7 @@ deploy_sillytavern() {
 
     if [ -d "$SILLYTAVERN_DIR" ]; then
         log_warn "检测到已有 SillyTavern 目录"
-        if ! confirm_choice "重新部署? (y/n): "; then
-            log_notice "取消部署"
-            return 0
-        fi
+        confirm_choice "重新部署? (y/n): " || { log_notice "取消部署"; return 0; }
         log_notice "清理旧目录..."
         rm -rf "$SILLYTAVERN_DIR"
     fi
@@ -228,20 +183,14 @@ deploy_sillytavern() {
         log_notice "正在更新系统包，请稍候..."
         if ! (pkg update -y && pkg upgrade -y); then
             log_error "❌ 系统包更新失败！"
-            if ! confirm_choice "是否继续部署? (y/n): "; then
-                log_notice "取消部署，返回主菜单"
-                return 1
-            fi
+            confirm_choice "是否继续部署? (y/n): " || { log_notice "取消部署，返回主菜单"; return 1; }
         fi
     else
         log_notice "跳过系统包更新"
     fi
 
     if confirm_choice "克隆前是否检测工具是否安装? (y/n): "; then
-        if ! check_tools; then
-            log_error "工具安装失败，部署取消！"
-            return 1
-        fi
+        check_tools || { log_error "工具安装失败，部署取消！"; return 1; }
     else
         log_notice "跳过工具检测"
     fi
@@ -249,101 +198,49 @@ deploy_sillytavern() {
     log_notice "准备克隆仓库..."
     log_hint "提示：按 CTRL+C 可中断克隆过程"
 
-    local clone_aborted=0
-    trap 'clone_aborted=1; log_error "\n检测到中断信号！已取消克隆。"' INT
-
-    if git clone "$REPO_URL" -b "$REPO_BRANCH" "$SILLYTAVERN_DIR"; then
-        trap - INT
-        if [ $clone_aborted -eq 1 ]; then
-            return 1
-        fi
-        log_success "✅ 酒馆部署完成！"
-    else
-        trap - INT
-        if [ $clone_aborted -eq 1 ]; then
-            return 1
-        fi
-        log_error "❌ 酒馆克隆失败！"
-        return 1
-    fi
+    trap 'log_error "\n检测到中断信号！已取消克隆。"; return 1' INT
+    git clone "$REPO_URL" -b "$REPO_BRANCH" "$SILLYTAVERN_DIR" && log_success "✅ 酒馆部署完成！" || log_error "❌ 酒馆克隆失败！"
+    trap - INT
 }
 
 start_sillytavern() {
     print_section "启动酒馆"
-
-    if [ ! -d "$SILLYTAVERN_DIR" ]; then
-        log_error "酒馆目录不存在，无法启动。"
-        return 1
-    fi
-
-    if [ ! -f "$START_SCRIPT" ]; then
-        log_error "start.sh 不存在，无法启动。"
-        return 1
-    fi
-
+    [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "酒馆目录不存在，无法启动。"; return 1; }
+    [ ! -f "$START_SCRIPT" ] && { log_error "start.sh 不存在，无法启动。"; return 1; }
     bash "$START_SCRIPT"
 }
 
 update_sillytavern() {
     print_section "更新酒馆"
-
-    if [ ! -d "$SILLYTAVERN_DIR" ]; then
-        log_error "酒馆目录不存在，无法更新。"
-        return 1
-    fi
-
-    if [ ! -d "$SILLYTAVERN_DIR/.git" ]; then
-        log_error "检测到目录 $SILLYTAVERN_DIR 不是 Git 仓库，无法执行更新。"
-        return 1
-    fi
-
-    if git -C "$SILLYTAVERN_DIR" pull --rebase --autostash; then
-        log_success "酒馆更新完成！"
-    else
-        log_error "酒馆更新失败！"
-    fi
+    [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "酒馆目录不存在，无法更新。"; return 1; }
+    [ ! -d "$SILLYTAVERN_DIR/.git" ] && { log_error "检测到目录 $SILLYTAVERN_DIR 不是 Git 仓库，无法执行更新。"; return 1; }
+    
+    git -C "$SILLYTAVERN_DIR" pull --rebase --autostash && log_success "酒馆更新完成！" || log_error "酒馆更新失败！"
 }
 
 rollback_sillytavern() {
     print_section "回退酒馆"
+    [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "酒馆目录不存在，无法回退版本。"; return 1; }
+    [ ! -d "$SILLYTAVERN_DIR/.git" ] && { log_error "检测到目录 $SILLYTAVERN_DIR 不是 Git 仓库，无法执行版本回退。"; return 1; }
 
-    if [ ! -d "$SILLYTAVERN_DIR" ]; then
-        log_error "酒馆目录不存在，无法回退版本。"
-        return 1
-    fi
-
-    if [ ! -d "$SILLYTAVERN_DIR/.git" ]; then
-        log_error "检测到目录 $SILLYTAVERN_DIR 不是 Git 仓库，无法执行版本回退。"
-        return 1
-    fi
-
-    local current_version
-    current_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
+    local current_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
     log_notice "当前版本: $current_version"
 
     log_warn "版本切换前建议备份重要数据！"
-    if ! confirm_choice "是否继续回退版本？(y/n): "; then
-        log_notice "取消版本回退"
-        return 0
-    fi
+    confirm_choice "是否继续回退版本？(y/n): " || { log_notice "取消版本回退"; return 0; }
 
     log_hint "提示："
     log_hint "  - 输入具体的版本号（如 1.13.4）"
     log_hint "  - 输入 commit hash（如 a1b2c3d）"
     log_hint "  - 输入 release 回到最新稳定版"
     log_prompt "请输入要回退到的版本: "
-    read -r TARGET_VERSION
+    read -r target_version
 
-    if [ -z "$TARGET_VERSION" ]; then
-        log_error "版本号不能为空！"
-        return 1
-    fi
+    [ -z "$target_version" ] && { log_error "版本号不能为空！"; return 1; }
 
-    log_notice "正在切换到版本: $TARGET_VERSION"
-
-    if git -C "$SILLYTAVERN_DIR" checkout "$TARGET_VERSION"; then
-        local new_version
-        new_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
+    log_notice "正在切换到版本: $target_version"
+    if git -C "$SILLYTAVERN_DIR" checkout "$target_version"; then
+        local new_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
         log_success "✅ 版本回退成功！"
         log_success "当前版本: $new_version"
     else
@@ -355,19 +252,11 @@ rollback_sillytavern() {
 
 delete_sillytavern() {
     print_section "删除酒馆"
-
-    if [ ! -d "$SILLYTAVERN_DIR" ]; then
-        log_notice "酒馆目录不存在，无需删除。"
-        return 0
-    fi
+    [ ! -d "$SILLYTAVERN_DIR" ] && { log_notice "酒馆目录不存在，无需删除。"; return 0; }
 
     log_warn "警告：此操作将永久删除 SillyTavern 目录及其所有内容！"
     if confirm_choice "确认删除? (y/n): "; then
-        if rm -rf "$SILLYTAVERN_DIR"; then
-            log_success "酒馆删除完成！"
-        else
-            log_error "酒馆删除失败！"
-        fi
+        rm -rf "$SILLYTAVERN_DIR" && log_success "酒馆删除完成！" || log_error "酒馆删除失败！"
     else
         log_notice "取消删除"
     fi
@@ -375,97 +264,53 @@ delete_sillytavern() {
 
 backup_sillytavern() {
     print_section "备份酒馆"
-
-    if [ ! -f "$BACKUP_SCRIPT" ]; then
-        log_error "备份脚本不存在，无法备份。"
-        return 1
-    fi
-
+    [ ! -f "$BACKUP_SCRIPT" ] && { log_error "备份脚本不存在，无法备份。"; return 1; }
     bash "$BACKUP_SCRIPT"
 }
 
 restore_sillytavern() {
     print_section "恢复酒馆备份"
     
-    local backup_dir_base="$HOME/storage/shared/"
-    local backup_dir_name="MySillyTavernBackups"
-    local backup_dir="${backup_dir_base}${backup_dir_name}"
-    local tmp_restore_dir="$HOME/tmp_sillytavern_restore"
-    local latest_backup=""
-    local restore_aborted=0
+    trap 'log_error "\n检测到中断信号！正在清理临时目录..."; rm -rf "$TMP_RESTORE_DIR"; exit 1' INT
     
-    trap 'restore_aborted=1; log_error "\n检测到中断信号！正在清理临时目录..."; rm -rf "$tmp_restore_dir"; exit 1' INT
-    
-    if [ ! -d "$SILLYTAVERN_DIR" ]; then
-        log_error "SillyTavern目录不存在，请先部署SillyTavern！"
-        trap - INT
-        return 1
-    fi
+    [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "SillyTavern目录不存在，请先部署SillyTavern！"; trap - INT; return 1; }
     
     local data_dir="$SILLYTAVERN_DIR/data"
-    if [ ! -d "$data_dir" ]; then
-        log_warn "data目录不存在，将自动创建"
-        mkdir -p "$data_dir"
-    fi
+    [ ! -d "$data_dir" ] && { log_warn "data目录不存在，将自动创建"; mkdir -p "$data_dir"; }
     
     log_warn "警告：此操作将永久删除当前的data目录并恢复备份！"
-    if ! confirm_choice "确定要继续恢复备份吗？(y/n): "; then
-        log_notice "已取消恢复操作，请返回主菜单"
-        trap - INT
-        return 0
-    fi
+    confirm_choice "确定要继续恢复备份吗？(y/n): " || { log_notice "已取消恢复操作，请返回主菜单"; trap - INT; return 0; }
     
-    if [ ! -d "$backup_dir" ]; then
-        log_error "备份目录不存在: $backup_dir"
-        log_hint "请先创建备份后再尝试恢复"
-        trap - INT
-        return 1
-    fi
+    [ ! -d "$BACKUP_DIR" ] && { log_error "备份目录不存在: $BACKUP_DIR"; log_hint "请先创建备份后再尝试恢复"; trap - INT; return 1; }
     
-    latest_backup=$(find "$backup_dir" -name "sillytavern_backup_*.zip" -type f -printf "%T@ %p\n" 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
-    
-    if [ -z "$latest_backup" ]; then
-        log_error "未找到任何备份文件！"
-        trap - INT
-        return 1
-    fi
+    local latest_backup=$(find "$BACKUP_DIR" -name "sillytavern_backup_*.zip" -type f -printf "%T@ %p\n" 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
+    [ -z "$latest_backup" ] && { log_error "未找到任何备份文件！"; trap - INT; return 1; }
     
     log_success "找到最新备份: $(basename "$latest_backup")"
-    
     log_notice "正在删除当前data目录..."
     rm -rf "$data_dir"
     
-    rm -rf "$tmp_restore_dir"
-    mkdir -p "$tmp_restore_dir"
+    rm -rf "$TMP_RESTORE_DIR"
+    mkdir -p "$TMP_RESTORE_DIR"
     
     log_notice "正在解压备份文件..."
-    if ! unzip -q "$latest_backup" -d "$tmp_restore_dir"; then
-        log_error "解压备份文件失败！"
-        rm -rf "$tmp_restore_dir"
-        trap - INT
-        return 1
-    fi
+    unzip -q "$latest_backup" -d "$TMP_RESTORE_DIR" || { log_error "解压备份文件失败！"; rm -rf "$TMP_RESTORE_DIR"; trap - INT; return 1; }
     
-    local extracted_data="$tmp_restore_dir/data"
-    if [ ! -d "$extracted_data" ]; then
-        log_error "备份文件格式错误：未找到data目录！"
-        rm -rf "$tmp_restore_dir"
-        trap - INT
-        return 1
-    fi
+    local extracted_data="$TMP_RESTORE_DIR/data"
+    [ ! -d "$extracted_data" ] && { log_error "备份文件格式错误：未找到data目录！"; rm -rf "$TMP_RESTORE_DIR"; trap - INT; return 1; }
     
     log_notice "正在恢复数据..."
     if mv "$extracted_data" "$data_dir"; then
         log_success "✅ 备份恢复成功！"
-        rm -rf "$tmp_restore_dir"
+        rm -rf "$TMP_RESTORE_DIR"
         log_hint "恢复完成！您可以启动SillyTavern查看恢复的数据"
-        trap - INT
     else
         log_error "❌ 数据恢复失败！"
-        rm -rf "$tmp_restore_dir"
+        rm -rf "$TMP_RESTORE_DIR"
         trap - INT
         return 1
     fi
+    trap - INT
 }
 
 ###############################################
