@@ -94,7 +94,7 @@ ensure_termux_storage() {
 
     log_warn "检测到共享存储目录不存在，正在设置存储权限..."
     termux-setup-storage
-    log_hint "请在弹窗中授权存储权限，授权完成后按回车继续..."
+    log_hint "请在弹窗中授权存储权限，授权完成后按 Enter 继续..."
     read -r
 
     if [ ! -d "$shared_dir" ]; then
@@ -392,9 +392,13 @@ restore_sillytavern() {
     local backup_dir="${backup_dir_base}${backup_dir_name}"
     local tmp_restore_dir="$HOME/tmp_sillytavern_restore"
     local latest_backup=""
+    local restore_aborted=0
+    
+    trap 'restore_aborted=1; log_error "\n检测到中断信号！正在清理临时目录..."; rm -rf "$tmp_restore_dir"; exit 1' INT
     
     if [ ! -d "$SILLYTAVERN_DIR" ]; then
         log_error "SillyTavern目录不存在，请先部署SillyTavern！"
+        trap - INT
         return 1
     fi
     
@@ -407,12 +411,14 @@ restore_sillytavern() {
     log_warn "警告：此操作将永久删除当前的data目录并恢复备份！"
     if ! confirm_choice "确定要继续恢复备份吗？(y/N): "; then
         log_notice "已取消恢复操作，请返回主菜单"
+        trap - INT
         return 0
     fi
     
     if [ ! -d "$backup_dir" ]; then
         log_error "备份目录不存在: $backup_dir"
         log_hint "请先创建备份后再尝试恢复"
+        trap - INT
         return 1
     fi
     
@@ -420,6 +426,7 @@ restore_sillytavern() {
     
     if [ -z "$latest_backup" ]; then
         log_error "未找到任何备份文件！"
+        trap - INT
         return 1
     fi
     
@@ -435,6 +442,7 @@ restore_sillytavern() {
     if ! unzip -q "$latest_backup" -d "$tmp_restore_dir"; then
         log_error "解压备份文件失败！"
         rm -rf "$tmp_restore_dir"
+        trap - INT
         return 1
     fi
     
@@ -442,6 +450,7 @@ restore_sillytavern() {
     if [ ! -d "$extracted_data" ]; then
         log_error "备份文件格式错误：未找到data目录！"
         rm -rf "$tmp_restore_dir"
+        trap - INT
         return 1
     fi
     
@@ -450,9 +459,11 @@ restore_sillytavern() {
         log_success "✅ 备份恢复成功！"
         rm -rf "$tmp_restore_dir"
         log_hint "恢复完成！您可以启动SillyTavern查看恢复的数据"
+        trap - INT
     else
         log_error "❌ 数据恢复失败！"
         rm -rf "$tmp_restore_dir"
+        trap - INT
         return 1
     fi
 }
