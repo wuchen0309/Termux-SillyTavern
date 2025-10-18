@@ -228,7 +228,7 @@ deploy_sillytavern() {
         log_notice "正在更新系统包，请稍候..."
         if ! (pkg update -y && pkg upgrade -y); then
             log_error "❌ 系统包更新失败！"
-            if ! confirm_choice "是否继续部署? (y/N): "; then
+            if ! confirm_choice "是否继续部署? (y/n): "; then
                 log_notice "取消部署，返回主菜单"
                 return 1
             fi
@@ -362,7 +362,7 @@ delete_sillytavern() {
     fi
 
     log_warn "警告：此操作将永久删除 SillyTavern 目录及其所有内容！"
-    if confirm_choice "确认删除? (y/N): "; then
+    if confirm_choice "确认删除? (y/n): "; then
         if rm -rf "$SILLYTAVERN_DIR"; then
             log_success "酒馆删除完成！"
         else
@@ -409,7 +409,7 @@ restore_sillytavern() {
     fi
     
     log_warn "警告：此操作将永久删除当前的data目录并恢复备份！"
-    if ! confirm_choice "确定要继续恢复备份吗？(y/N): "; then
+    if ! confirm_choice "确定要继续恢复备份吗？(y/n): "; then
         log_notice "已取消恢复操作，请返回主菜单"
         trap - INT
         return 0
