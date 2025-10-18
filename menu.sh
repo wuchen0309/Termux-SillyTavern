@@ -94,7 +94,7 @@ ensure_termux_storage() {
 
     log_warn "检测到共享存储目录不存在，正在设置存储权限..."
     termux-setup-storage
-    log_hint "请在弹窗中授权存储权限，授权完成后按 Enter 继续..."
+    log_hint "请在弹窗中授权存储权限，授权完成后按回车继续..."
     read -r
 
     if [ ! -d "$shared_dir" ]; then
