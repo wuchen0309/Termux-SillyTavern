@@ -6,7 +6,7 @@
 
 [![GitHub Stars](https://img.shields.io/github/stars/wuchen0309/Termux-SillyTavern.svg?style=for-the-badge&logo=github)](https://github.com/wuchen0309/Termux-SillyTavern)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-blue.svg?style=for-the-badge)](https://github.com/wuchen0309/Termux-SillyTavern/blob/main/LICENSE)
-[![Version](https://img.shields.io/badge/Version-2025.10.17-brightgreen.svg?style=for-the-badge)](https://github.com/wuchen0309/Termux-SillyTavern/blob/main/menu.sh)
+[![Version](https://img.shields.io/badge/Version-2025.10.18-brightgreen.svg?style=for-the-badge)](https://github.com/wuchen0309/Termux-SillyTavern/blob/main/menu.sh)
 [![Platform](https://img.shields.io/badge/Platform-Termux%20(Android)-orange.svg?style=for-the-badge&logo=android)](https://termux.dev/cn/index.html)
 
 </div>
@@ -97,3 +97,10 @@ $HOME/menu.sh
 
 - **备份酒馆**
   - 将`$HOME/SillyTavern/data/default-user/`目录打包成带时间戳的 zip 文件，并保存到手机内部存储的`MySillyTavernBackups`文件夹中。
+
+- **回退酒馆**
+  - 显示当前SillyTavern版本信息。
+  - 支持输入具体版本号（如 `1.13.4`）、commit hash（如 `a1b2c3d`）或标签。
+  - 输入 `release` 可快速回到最新稳定版。
+  - 切换前提醒用户备份重要数据。
+  - 使用绝对路径操作，不依赖当前工作目录。

@@ -13,6 +13,7 @@ CYAN='\033[38;5;44m'
 BRIGHT_CYAN='\033[38;5;51m'
 BRIGHT_GREEN='\033[38;5;46m'
 BRIGHT_RED='\033[38;5;196m'
+TEAL='\033[38;5;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
@@ -22,9 +23,10 @@ REPO_BRANCH="release"
 SILLYTAVERN_DIR="$HOME/SillyTavern"
 START_SCRIPT="$SILLYTAVERN_DIR/start.sh"
 BACKUP_SCRIPT="$HOME/backup_sillytavern.sh"
+REQUIRED_TOOLS=(git nodejs-lts zip)
 FONT_URL="https://raw.githubusercontent.com/wuchen0309/Termux-SillyTavern/main/font.ttf"
 FONT_PATH="$HOME/.termux/font.ttf"
-REQUIRED_TOOLS=(git nodejs-lts zip)
+TARGET_VERSION=""  # 默认为空，用户输入时设置
 
 # ==== 日志 / 输出工具 ====
 print_section()  { echo -e "${CYAN}${BOLD}==== $1 ====${NC}"; }
@@ -116,7 +118,6 @@ src_dir="$HOME/SillyTavern/data/default-user/"
 tmp_dir="$HOME/tmp_sillytavern_backup_copy"
 backup_dir_base="$HOME/storage/shared/"
 backup_dir_name="MySillyTavernBackups"
-folder_name_in_zip="default-user"
 backup_dir="${backup_dir_base}${backup_dir_name}"
 timestamp=$(date +%Y%m%d_%H%M%S)
 backup_name="sillytavern_backup_$timestamp.zip"
@@ -133,12 +134,12 @@ rm -rf "$tmp_dir"
 mkdir -p "$tmp_dir" || { echo "❌ 错误：无法创建临时目录 '$tmp_dir'！"; exit 1; }
 
 echo "正在拷贝数据到临时目录..."
-cp -r "$src_dir" "$tmp_dir/$folder_name_in_zip" || { echo "❌ 拷贝失败！"; rm -rf "$tmp_dir"; exit 1; }
+cp -r "$src_dir" "$tmp_dir/default-user" || { echo "❌ 拷贝失败！"; rm -rf "$tmp_dir"; exit 1; }
 
 cd "$tmp_dir" || { echo "❌ 无法进入临时目录 '$tmp_dir'！"; rm -rf "$tmp_dir"; exit 1; }
 
 echo "正在压缩备份文件..."
-if zip -r "$backup_dir/$backup_name" "$folder_name_in_zip"; then
+if zip -r "$backup_dir/$backup_name" "default-user"; then
     echo "✅ 备份成功完成！备份文件保存至: $backup_dir/$backup_name"
 else
     echo "❌ 压缩失败！"
@@ -149,6 +150,7 @@ rm -rf "$tmp_dir"
 echo "== 备份流程结束 =="
 EOF
 
+    chmod +x "$BACKUP_SCRIPT"
     log_success "备份脚本初始化完成！"
 }
 
@@ -301,6 +303,59 @@ update_sillytavern() {
     fi
 }
 
+rollback_sillytavern() {
+    print_section "回退酒馆"
+
+    if [ ! -d "$SILLYTAVERN_DIR" ]; then
+        log_error "酒馆目录不存在，无法回退版本。"
+        return 1
+    fi
+
+    if [ ! -d "$SILLYTAVERN_DIR/.git" ]; then
+        log_error "检测到目录 $SILLYTAVERN_DIR 不是 Git 仓库，无法执行版本回退。"
+        return 1
+    fi
+
+    # 获取当前版本信息
+    local current_version
+    current_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
+    log_notice "当前版本: $current_version"
+
+    # 提示用户备份
+    log_warn "版本切换前建议备份重要数据！"
+    if ! confirm_choice "是否继续回退版本？(y/n): "; then
+        log_notice "取消版本回退"
+        return 0
+    fi
+
+    # 提示用户输入版本
+    log_hint "提示："
+    log_hint "  - 输入具体的版本号（如 1.13.4）"
+    log_hint "  - 输入 commit hash（如 a1b2c3d）"
+    log_hint "  - 输入 release 回到最新稳定版"
+    log_prompt "请输入要回退到的版本: "
+    read -r TARGET_VERSION
+
+    if [ -z "$TARGET_VERSION" ]; then
+        log_error "版本号不能为空！"
+        return 1
+    fi
+
+    log_notice "正在切换到版本: $TARGET_VERSION"
+
+    # 执行版本切换
+    if git -C "$SILLYTAVERN_DIR" checkout "$TARGET_VERSION"; then
+        local new_version
+        new_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
+        log_success "✅ 版本回退成功！"
+        log_success "当前版本: $new_version"
+    else
+        log_error "❌ 版本回退失败！"
+        log_error "请检查版本号是否正确，或网络连接是否正常。"
+        return 1
+    fi
+}
+
 delete_sillytavern() {
     print_section "删除酒馆"
 
@@ -345,8 +400,9 @@ show_menu() {
     echo -e "${MAGENTA}${BOLD}3. 更新酒馆${NC}"
     echo -e "${BRIGHT_RED}${BOLD}4. 删除酒馆${NC}"
     echo -e "${BRIGHT_CYAN}${BOLD}5. 备份酒馆${NC}"
+    echo -e "${TEAL}${BOLD}6. 回退酒馆${NC}"
     echo -e "${CYAN}${BOLD}==================================${NC}"
-    log_prompt "请选择操作 (0-5): "
+    log_prompt "请选择操作 (0-6): "
 }
 
 main() {
@@ -365,6 +421,7 @@ main() {
             3) update_sillytavern;   press_any_key ;;
             4) delete_sillytavern;   press_any_key ;;
             5) backup_sillytavern;   press_any_key ;;
+            6) rollback_sillytavern; press_any_key ;;
             *) log_error "无效选择，请重新输入！"; sleep 1 ;;
         esac
     done
