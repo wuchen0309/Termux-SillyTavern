@@ -14,6 +14,7 @@ BRIGHT_CYAN='\033[38;5;51m'
 BRIGHT_GREEN='\033[38;5;46m'
 BRIGHT_RED='\033[38;5;196m'
 TEAL='\033[38;5;36m'
+ORANGE='\033[38;5;208m'
 BOLD='\033[1m'
 NC='\033[0m'
 
@@ -23,10 +24,10 @@ REPO_BRANCH="release"
 SILLYTAVERN_DIR="$HOME/SillyTavern"
 START_SCRIPT="$SILLYTAVERN_DIR/start.sh"
 BACKUP_SCRIPT="$HOME/backup_sillytavern.sh"
-REQUIRED_TOOLS=(git nodejs-lts zip)
+REQUIRED_TOOLS=(git nodejs-lts zip unzip)
 FONT_URL="https://raw.githubusercontent.com/wuchen0309/Termux-SillyTavern/main/font.ttf"
 FONT_PATH="$HOME/.termux/font.ttf"
-TARGET_VERSION=""  # 默认为空，用户输入时设置
+TARGET_VERSION=""
 
 # ==== 日志 / 输出工具 ====
 print_section()  { echo -e "${CYAN}${BOLD}==== $1 ====${NC}"; }
@@ -67,13 +68,11 @@ ensure_termux_font() {
     print_section "检查并下载字体文件"
     log_notice "字体文件不存在，正在下载..."
 
-    # 确保目录存在
     mkdir -p "$(dirname "$FONT_PATH")"
 
     if curl -L --progress-bar -o "$FONT_PATH" "$FONT_URL"; then
         log_success "字体文件下载完成！"
         
-        # 尝试重新加载 Termux 设置以立即应用字体
         if command -v termux-reload-settings >/dev/null 2>&1; then
             log_notice "正在应用新字体..."
             termux-reload-settings
@@ -95,7 +94,7 @@ ensure_termux_storage() {
 
     log_warn "检测到共享存储目录不存在，正在设置存储权限..."
     termux-setup-storage
-    log_hint "请在弹窗中授权存储权限，授权完成后按 Enter 继续..."
+    log_hint "请在弹窗中授权存储权限，授权完成后按回车继续..."
     read -r
 
     if [ ! -d "$shared_dir" ]; then
@@ -114,11 +113,11 @@ ensure_backup_script() {
     log_notice "首次使用：正在创建备份脚本..."
     cat >"$BACKUP_SCRIPT"<<'EOF'
 #!/bin/bash
-src_dir="$HOME/SillyTavern/data/default-user/"
+src_dir="$HOME/SillyTavern/data/"
 tmp_dir="$HOME/tmp_sillytavern_backup_copy"
 backup_dir_base="$HOME/storage/shared/"
 backup_dir_name="MySillyTavernBackups"
-folder_name_in_zip="default-user"
+folder_name_in_zip="data"
 backup_dir="${backup_dir_base}${backup_dir_name}"
 timestamp=$(date +%Y%m%d_%H%M%S)
 backup_name="sillytavern_backup_$timestamp.zip"
@@ -162,6 +161,7 @@ check_tools() {
         ["git"]="git"
         ["nodejs-lts"]="nodejs-lts"
         ["zip"]="zip"
+        ["unzip"]="unzip"
     )
     local missing_tools=()
 
@@ -317,19 +317,16 @@ rollback_sillytavern() {
         return 1
     fi
 
-    # 获取当前版本信息
     local current_version
     current_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
     log_notice "当前版本: $current_version"
 
-    # 提示用户备份
     log_warn "版本切换前建议备份重要数据！"
     if ! confirm_choice "是否继续回退版本？(y/n): "; then
         log_notice "取消版本回退"
         return 0
     fi
 
-    # 提示用户输入版本
     log_hint "提示："
     log_hint "  - 输入具体的版本号（如 1.13.4）"
     log_hint "  - 输入 commit hash（如 a1b2c3d）"
@@ -344,7 +341,6 @@ rollback_sillytavern() {
 
     log_notice "正在切换到版本: $TARGET_VERSION"
 
-    # 执行版本切换
     if git -C "$SILLYTAVERN_DIR" checkout "$TARGET_VERSION"; then
         local new_version
         new_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
@@ -388,6 +384,79 @@ backup_sillytavern() {
     bash "$BACKUP_SCRIPT"
 }
 
+restore_sillytavern() {
+    print_section "恢复酒馆备份"
+    
+    local backup_dir_base="$HOME/storage/shared/"
+    local backup_dir_name="MySillyTavernBackups"
+    local backup_dir="${backup_dir_base}${backup_dir_name}"
+    local tmp_restore_dir="$HOME/tmp_sillytavern_restore"
+    local latest_backup=""
+    
+    if [ ! -d "$SILLYTAVERN_DIR" ]; then
+        log_error "SillyTavern目录不存在，请先部署SillyTavern！"
+        return 1
+    fi
+    
+    local data_dir="$SILLYTAVERN_DIR/data"
+    if [ ! -d "$data_dir" ]; then
+        log_warn "data目录不存在，将自动创建"
+        mkdir -p "$data_dir"
+    fi
+    
+    log_warn "警告：此操作将永久删除当前的data目录并恢复备份！"
+    if ! confirm_choice "确定要继续恢复备份吗？(y/N): "; then
+        log_notice "已取消恢复操作，请返回主菜单"
+        return 0
+    fi
+    
+    if [ ! -d "$backup_dir" ]; then
+        log_error "备份目录不存在: $backup_dir"
+        log_hint "请先创建备份后再尝试恢复"
+        return 1
+    fi
+    
+    latest_backup=$(find "$backup_dir" -name "sillytavern_backup_*.zip" -type f -printf "%T@ %p\n" 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
+    
+    if [ -z "$latest_backup" ]; then
+        log_error "未找到任何备份文件！"
+        return 1
+    fi
+    
+    log_success "找到最新备份: $(basename "$latest_backup")"
+    
+    log_notice "正在删除当前data目录..."
+    rm -rf "$data_dir"
+    
+    rm -rf "$tmp_restore_dir"
+    mkdir -p "$tmp_restore_dir"
+    
+    log_notice "正在解压备份文件..."
+    if ! unzip -q "$latest_backup" -d "$tmp_restore_dir"; then
+        log_error "解压备份文件失败！"
+        rm -rf "$tmp_restore_dir"
+        return 1
+    fi
+    
+    local extracted_data="$tmp_restore_dir/data"
+    if [ ! -d "$extracted_data" ]; then
+        log_error "备份文件格式错误：未找到data目录！"
+        rm -rf "$tmp_restore_dir"
+        return 1
+    fi
+    
+    log_notice "正在恢复数据..."
+    if mv "$extracted_data" "$data_dir"; then
+        log_success "✅ 备份恢复成功！"
+        rm -rf "$tmp_restore_dir"
+        log_hint "恢复完成！您可以启动SillyTavern查看恢复的数据"
+    else
+        log_error "❌ 数据恢复失败！"
+        rm -rf "$tmp_restore_dir"
+        return 1
+    fi
+}
+
 ###############################################
 # 菜单与主循环
 ###############################################
@@ -402,8 +471,9 @@ show_menu() {
     echo -e "${BRIGHT_RED}${BOLD}4. 删除酒馆${NC}"
     echo -e "${BRIGHT_CYAN}${BOLD}5. 备份酒馆${NC}"
     echo -e "${TEAL}${BOLD}6. 回退酒馆${NC}"
+    echo -e "${ORANGE}${BOLD}7. 恢复备份${NC}"
     echo -e "${CYAN}${BOLD}==================================${NC}"
-    log_prompt "请选择操作 (0-6): "
+    log_prompt "请选择操作 (0-7): "
 }
 
 main() {
@@ -423,6 +493,7 @@ main() {
             4) delete_sillytavern;   press_any_key ;;
             5) backup_sillytavern;   press_any_key ;;
             6) rollback_sillytavern; press_any_key ;;
+            7) restore_sillytavern;  press_any_key ;;
             *) log_error "无效选择，请重新输入！"; sleep 1 ;;
         esac
     done
