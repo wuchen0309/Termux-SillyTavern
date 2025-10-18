@@ -118,6 +118,7 @@ src_dir="$HOME/SillyTavern/data/default-user/"
 tmp_dir="$HOME/tmp_sillytavern_backup_copy"
 backup_dir_base="$HOME/storage/shared/"
 backup_dir_name="MySillyTavernBackups"
+folder_name_in_zip="default-user"
 backup_dir="${backup_dir_base}${backup_dir_name}"
 timestamp=$(date +%Y%m%d_%H%M%S)
 backup_name="sillytavern_backup_$timestamp.zip"
@@ -134,12 +135,12 @@ rm -rf "$tmp_dir"
 mkdir -p "$tmp_dir" || { echo "❌ 错误：无法创建临时目录 '$tmp_dir'！"; exit 1; }
 
 echo "正在拷贝数据到临时目录..."
-cp -r "$src_dir" "$tmp_dir/default-user" || { echo "❌ 拷贝失败！"; rm -rf "$tmp_dir"; exit 1; }
+cp -r "$src_dir" "$tmp_dir/$folder_name_in_zip" || { echo "❌ 拷贝失败！"; rm -rf "$tmp_dir"; exit 1; }
 
 cd "$tmp_dir" || { echo "❌ 无法进入临时目录 '$tmp_dir'！"; rm -rf "$tmp_dir"; exit 1; }
 
 echo "正在压缩备份文件..."
-if zip -r "$backup_dir/$backup_name" "default-user"; then
+if zip -r "$backup_dir/$backup_name" "$folder_name_in_zip"; then
     echo "✅ 备份成功完成！备份文件保存至: $backup_dir/$backup_name"
 else
     echo "❌ 压缩失败！"
