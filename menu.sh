@@ -218,6 +218,69 @@ update_sillytavern() {
     git -C "$SILLYTAVERN_DIR" pull --rebase --autostash && log_success "酒馆更新完成！" || log_error "酒馆更新失败！"
 }
 
+delete_sillytavern() {
+    print_section "删除酒馆"
+    [ ! -d "$SILLYTAVERN_DIR" ] && { log_notice "酒馆目录不存在，无需删除。"; return 0; }
+
+    log_warn "警告：此操作将永久删除 SillyTavern 目录及其所有内容！"
+    if confirm_choice "确认删除? (y/n): "; then
+        rm -rf "$SILLYTAVERN_DIR" && log_success "酒馆删除完成！" || log_error "酒馆删除失败！"
+    else
+        log_notice "取消删除"
+    fi
+}
+
+backup_sillytavern() {
+    print_section "备份酒馆"
+    [ ! -f "$BACKUP_SCRIPT" ] && { log_error "备份脚本不存在，无法备份。"; return 1; }
+    bash "$BACKUP_SCRIPT"
+}
+
+restore_sillytavern() {
+    print_section "恢复酒馆"
+    
+    trap 'log_error "\n检测到中断信号！正在清理临时目录..."; rm -rf "$TMP_RESTORE_DIR"; exit 1' INT
+    
+    [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "SillyTavern目录不存在，请先部署SillyTavern！"; trap - INT; return 1; }
+    
+    local data_dir="$SILLYTAVERN_DIR/data"
+    [ ! -d "$data_dir" ] && { log_warn "data目录不存在，将自动创建"; mkdir -p "$data_dir"; }
+    
+    log_warn "警告：此操作将永久删除当前的data目录并恢复备份！"
+    confirm_choice "确定要继续恢复酒馆吗？(y/n): " || { log_notice "已取消恢复操作，请返回主菜单"; trap - INT; return 0; }
+    
+    [ ! -d "$BACKUP_DIR" ] && { log_error "备份目录不存在: $BACKUP_DIR"; log_hint "请先创建备份后再尝试恢复"; trap - INT; return 1; }
+    
+    local latest_backup=$(find "$BACKUP_DIR" -name "sillytavern_backup_*.zip" -type f -printf "%T@ %p\n" 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
+    [ -z "$latest_backup" ] && { log_error "未找到任何备份文件！"; trap - INT; return 1; }
+    
+    log_success "找到最新备份: $(basename "$latest_backup")"
+    log_notice "正在删除当前data目录..."
+    rm -rf "$data_dir"
+    
+    rm -rf "$TMP_RESTORE_DIR"
+    mkdir -p "$TMP_RESTORE_DIR"
+    
+    log_notice "正在解压备份文件..."
+    unzip -q "$latest_backup" -d "$TMP_RESTORE_DIR" || { log_error "解压备份文件失败！"; rm -rf "$TMP_RESTORE_DIR"; trap - INT; return 1; }
+    
+    local extracted_data="$TMP_RESTORE_DIR/data"
+    [ ! -d "$extracted_data" ] && { log_error "备份文件格式错误：未找到data目录！"; rm -rf "$TMP_RESTORE_DIR"; trap - INT; return 1; }
+    
+    log_notice "正在恢复数据..."
+    if mv "$extracted_data" "$data_dir"; then
+        log_success "✅ 酒馆恢复成功！"
+        rm -rf "$TMP_RESTORE_DIR"
+        log_hint "恢复完成！您可以启动SillyTavern查看恢复的数据"
+    else
+        log_error "❌ 数据恢复失败！"
+        rm -rf "$TMP_RESTORE_DIR"
+        trap - INT
+        return 1
+    fi
+    trap - INT
+}
+
 rollback_sillytavern() {
     print_section "回退酒馆"
     [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "酒馆目录不存在，无法回退版本。"; return 1; }
@@ -250,69 +313,6 @@ rollback_sillytavern() {
     fi
 }
 
-delete_sillytavern() {
-    print_section "删除酒馆"
-    [ ! -d "$SILLYTAVERN_DIR" ] && { log_notice "酒馆目录不存在，无需删除。"; return 0; }
-
-    log_warn "警告：此操作将永久删除 SillyTavern 目录及其所有内容！"
-    if confirm_choice "确认删除? (y/n): "; then
-        rm -rf "$SILLYTAVERN_DIR" && log_success "酒馆删除完成！" || log_error "酒馆删除失败！"
-    else
-        log_notice "取消删除"
-    fi
-}
-
-backup_sillytavern() {
-    print_section "备份酒馆"
-    [ ! -f "$BACKUP_SCRIPT" ] && { log_error "备份脚本不存在，无法备份。"; return 1; }
-    bash "$BACKUP_SCRIPT"
-}
-
-restore_sillytavern() {
-    print_section "恢复酒馆备份"
-    
-    trap 'log_error "\n检测到中断信号！正在清理临时目录..."; rm -rf "$TMP_RESTORE_DIR"; exit 1' INT
-    
-    [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "SillyTavern目录不存在，请先部署SillyTavern！"; trap - INT; return 1; }
-    
-    local data_dir="$SILLYTAVERN_DIR/data"
-    [ ! -d "$data_dir" ] && { log_warn "data目录不存在，将自动创建"; mkdir -p "$data_dir"; }
-    
-    log_warn "警告：此操作将永久删除当前的data目录并恢复备份！"
-    confirm_choice "确定要继续恢复备份吗？(y/n): " || { log_notice "已取消恢复操作，请返回主菜单"; trap - INT; return 0; }
-    
-    [ ! -d "$BACKUP_DIR" ] && { log_error "备份目录不存在: $BACKUP_DIR"; log_hint "请先创建备份后再尝试恢复"; trap - INT; return 1; }
-    
-    local latest_backup=$(find "$BACKUP_DIR" -name "sillytavern_backup_*.zip" -type f -printf "%T@ %p\n" 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
-    [ -z "$latest_backup" ] && { log_error "未找到任何备份文件！"; trap - INT; return 1; }
-    
-    log_success "找到最新备份: $(basename "$latest_backup")"
-    log_notice "正在删除当前data目录..."
-    rm -rf "$data_dir"
-    
-    rm -rf "$TMP_RESTORE_DIR"
-    mkdir -p "$TMP_RESTORE_DIR"
-    
-    log_notice "正在解压备份文件..."
-    unzip -q "$latest_backup" -d "$TMP_RESTORE_DIR" || { log_error "解压备份文件失败！"; rm -rf "$TMP_RESTORE_DIR"; trap - INT; return 1; }
-    
-    local extracted_data="$TMP_RESTORE_DIR/data"
-    [ ! -d "$extracted_data" ] && { log_error "备份文件格式错误：未找到data目录！"; rm -rf "$TMP_RESTORE_DIR"; trap - INT; return 1; }
-    
-    log_notice "正在恢复数据..."
-    if mv "$extracted_data" "$data_dir"; then
-        log_success "✅ 备份恢复成功！"
-        rm -rf "$TMP_RESTORE_DIR"
-        log_hint "恢复完成！您可以启动SillyTavern查看恢复的数据"
-    else
-        log_error "❌ 数据恢复失败！"
-        rm -rf "$TMP_RESTORE_DIR"
-        trap - INT
-        return 1
-    fi
-    trap - INT
-}
-
 ###############################################
 # 菜单与主循环
 ###############################################
@@ -326,8 +326,8 @@ show_menu() {
     echo -e "${MAGENTA}${BOLD}3. 更新酒馆${NC}"
     echo -e "${BRIGHT_RED}${BOLD}4. 删除酒馆${NC}"
     echo -e "${BRIGHT_CYAN}${BOLD}5. 备份酒馆${NC}"
-    echo -e "${TEAL}${BOLD}6. 回退酒馆${NC}"
-    echo -e "${ORANGE}${BOLD}7. 恢复备份${NC}"
+    echo -e "${TEAL}${BOLD}6. 恢复酒馆${NC}"
+    echo -e "${ORANGE}${BOLD}7. 回退酒馆${NC}"
     echo -e "${CYAN}${BOLD}==================================${NC}"
     log_prompt "请选择操作 (0-7): "
 }
@@ -348,8 +348,8 @@ main() {
             3) update_sillytavern;   press_any_key ;;
             4) delete_sillytavern;   press_any_key ;;
             5) backup_sillytavern;   press_any_key ;;
-            6) rollback_sillytavern; press_any_key ;;
-            7) restore_sillytavern;  press_any_key ;;
+            6) restore_sillytavern;  press_any_key ;;
+            7) rollback_sillytavern; press_any_key ;;
             *) log_error "无效选择，请重新输入！"; sleep 1 ;;
         esac
     done
