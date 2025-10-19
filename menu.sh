@@ -218,38 +218,6 @@ update_sillytavern() {
     git -C "$SILLYTAVERN_DIR" pull --rebase --autostash && log_success "酒馆更新完成！" || log_error "酒馆更新失败！"
 }
 
-rollback_sillytavern() {
-    print_section "回退酒馆"
-    [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "酒馆目录不存在，无法回退版本。"; return 1; }
-    [ ! -d "$SILLYTAVERN_DIR/.git" ] && { log_error "检测到目录 $SILLYTAVERN_DIR 不是 Git 仓库，无法执行版本回退。"; return 1; }
-
-    local current_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
-    log_notice "当前版本: $current_version"
-
-    log_warn "版本切换前建议备份重要数据！"
-    confirm_choice "是否继续回退版本？(y/n): " || { log_notice "取消版本回退"; return 0; }
-
-    log_hint "提示："
-    log_hint "  - 输入具体的版本号（如 1.13.4）"
-    log_hint "  - 输入 commit hash（如 a1b2c3d）"
-    log_hint "  - 输入 release 回到最新稳定版"
-    log_prompt "请输入要回退到的版本: "
-    read -r target_version
-
-    [ -z "$target_version" ] && { log_error "版本号不能为空！"; return 1; }
-
-    log_notice "正在切换到版本: $target_version"
-    if git -C "$SILLYTAVERN_DIR" checkout "$target_version"; then
-        local new_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
-        log_success "✅ 版本回退成功！"
-        log_success "当前版本: $new_version"
-    else
-        log_error "❌ 版本回退失败！"
-        log_error "请检查版本号是否正确，或网络连接是否正常。"
-        return 1
-    fi
-}
-
 delete_sillytavern() {
     print_section "删除酒馆"
     [ ! -d "$SILLYTAVERN_DIR" ] && { log_notice "酒馆目录不存在，无需删除。"; return 0; }
@@ -269,7 +237,7 @@ backup_sillytavern() {
 }
 
 restore_sillytavern() {
-    print_section "恢复酒馆备份"
+    print_section "恢复酒馆"
     
     trap 'log_error "\n检测到中断信号！正在清理临时目录..."; rm -rf "$TMP_RESTORE_DIR"; exit 1' INT
     
@@ -313,6 +281,38 @@ restore_sillytavern() {
     trap - INT
 }
 
+rollback_sillytavern() {
+    print_section "回退酒馆"
+    [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "酒馆目录不存在，无法回退版本。"; return 1; }
+    [ ! -d "$SILLYTAVERN_DIR/.git" ] && { log_error "检测到目录 $SILLYTAVERN_DIR 不是 Git 仓库，无法执行版本回退。"; return 1; }
+
+    local current_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
+    log_notice "当前版本: $current_version"
+
+    log_warn "版本切换前建议备份重要数据！"
+    confirm_choice "是否继续回退版本？(y/n): " || { log_notice "取消版本回退"; return 0; }
+
+    log_hint "提示："
+    log_hint "  - 输入具体的版本号（如 1.13.4）"
+    log_hint "  - 输入 commit hash（如 a1b2c3d）"
+    log_hint "  - 输入 release 回到最新稳定版"
+    log_prompt "请输入要回退到的版本: "
+    read -r target_version
+
+    [ -z "$target_version" ] && { log_error "版本号不能为空！"; return 1; }
+
+    log_notice "正在切换到版本: $target_version"
+    if git -C "$SILLYTAVERN_DIR" checkout "$target_version"; then
+        local new_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
+        log_success "✅ 版本回退成功！"
+        log_success "当前版本: $new_version"
+    else
+        log_error "❌ 版本回退失败！"
+        log_error "请检查版本号是否正确，或网络连接是否正常。"
+        return 1
+    fi
+}
+
 ###############################################
 # 菜单与主循环
 ###############################################
@@ -326,8 +326,8 @@ show_menu() {
     echo -e "${MAGENTA}${BOLD}3. 更新酒馆${NC}"
     echo -e "${BRIGHT_RED}${BOLD}4. 删除酒馆${NC}"
     echo -e "${BRIGHT_CYAN}${BOLD}5. 备份酒馆${NC}"
-    echo -e "${TEAL}${BOLD}6. 回退酒馆${NC}"
-    echo -e "${ORANGE}${BOLD}7. 恢复备份${NC}"
+    echo -e "${ORANGE}${BOLD}6. 恢复酒馆${NC}"
+    echo -e "${TEAL}${BOLD}7. 回退酒馆${NC}"
     echo -e "${CYAN}${BOLD}==================================${NC}"
     log_prompt "请选择操作 (0-7): "
 }
@@ -348,8 +348,8 @@ main() {
             3) update_sillytavern;   press_any_key ;;
             4) delete_sillytavern;   press_any_key ;;
             5) backup_sillytavern;   press_any_key ;;
-            6) rollback_sillytavern; press_any_key ;;
-            7) restore_sillytavern;  press_any_key ;;
+            6) restore_sillytavern;  press_any_key ;;
+            7) rollback_sillytavern; press_any_key ;;
             *) log_error "无效选择，请重新输入！"; sleep 1 ;;
         esac
     done
