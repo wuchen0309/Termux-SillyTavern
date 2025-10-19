@@ -15,6 +15,7 @@ BRIGHT_GREEN='\033[38;5;46m'
 BRIGHT_RED='\033[38;5;196m'
 TEAL='\033[38;5;36m'
 ORANGE='\033[38;5;208m'
+PURPLE='\033[38;5;93m'
 BOLD='\033[1m'
 NC='\033[0m'
 
@@ -162,6 +163,23 @@ check_tools() {
     fi
 
     log_success "工具检查完成！已安装: ${#REQUIRED_TOOLS[@]} 个"
+}
+
+check_tools_manual() {
+    print_section "工具检测"
+    
+    if confirm_choice "检测前是否更新系统包? (y/n): "; then
+        print_section "更新系统包"
+        log_notice "正在更新系统包，请稍候..."
+        if ! (pkg update -y && pkg upgrade -y); then
+            log_error "❌ 系统包更新失败！"
+            confirm_choice "是否继续工具检测? (y/n): " || { log_notice "取消工具检测，返回主菜单"; return 0; }
+        fi
+    else
+        log_notice "跳过系统包更新"
+    fi
+    
+    check_tools
 }
 
 ###############################################
@@ -328,8 +346,9 @@ show_menu() {
     echo -e "${BRIGHT_CYAN}${BOLD}5. 备份酒馆${NC}"
     echo -e "${ORANGE}${BOLD}6. 恢复酒馆${NC}"
     echo -e "${TEAL}${BOLD}7. 回退酒馆${NC}"
+    echo -e "${PURPLE}${BOLD}8. 工具检测${NC}"
     echo -e "${CYAN}${BOLD}==================================${NC}"
-    log_prompt "请选择操作 (0-7): "
+    log_prompt "请选择操作 (0-8): "
 }
 
 main() {
@@ -350,6 +369,7 @@ main() {
             5) backup_sillytavern;   press_any_key ;;
             6) restore_sillytavern;  press_any_key ;;
             7) rollback_sillytavern; press_any_key ;;
+            8) check_tools_manual;   press_any_key ;;
             *) log_error "无效选择，请重新输入！"; sleep 1 ;;
         esac
     done
