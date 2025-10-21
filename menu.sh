@@ -30,6 +30,7 @@ FONT_URL="https://raw.githubusercontent.com/wuchen0309/Termux-SillyTavern/main/f
 FONT_PATH="$HOME/.termux/font.ttf"
 BACKUP_DIR="$HOME/storage/shared/MySillyTavernBackups"
 TMP_RESTORE_DIR="$HOME/tmp_sillytavern_restore"
+DATA_DIR="$SILLYTAVERN_DIR/data"
 
 # ==== 日志 / 输出工具 ====
 print_section()  { echo -e "${CYAN}${BOLD}==== $1 ====${NC}"; }
@@ -54,52 +55,35 @@ confirm_choice() {
     done
 }
 
-press_any_key() {
-    log_notice "按任意键返回菜单..."
-    read -n1 -s
-}
+press_any_key() { log_notice "按任意键返回菜单..."; read -n1 -s; }
+run() { "$@"; press_any_key; }
 
 # ==== 环境准备函数 ====
 ensure_termux_font() {
     [ -f "$FONT_PATH" ] && { log_success "字体文件已存在，跳过下载"; return 0; }
-
     print_section "检查并下载字体文件"
     log_notice "字体文件不存在，正在下载..."
     mkdir -p "$(dirname "$FONT_PATH")"
-
     if curl -L --progress-bar -o "$FONT_PATH" "$FONT_URL"; then
         log_success "字体文件下载完成！"
-        if command -v termux-reload-settings >/dev/null 2>&1; then
-            log_notice "正在应用新字体..."
-            termux-reload-settings
-            log_success "新字体已应用！"
-        else
-            log_warn "termux-reload-settings 命令不可用，请重启 Termux 以应用新字体。"
-        fi
+        command -v termux-reload-settings >/dev/null 2>&1 && { log_notice "正在应用新字体..."; termux-reload-settings; log_success "新字体已应用！"; } || log_warn "termux-reload-settings 命令不可用，请重启 Termux 以应用新字体。"
     else
-        log_error "字体文件下载失败！"
-        return 1
+        log_error "字体文件下载失败！"; return 1
     fi
 }
 
 ensure_termux_storage() {
     [ -d "$HOME/storage/shared" ] && return 0
-
     log_warn "检测到共享存储目录不存在，正在设置存储权限..."
     termux-setup-storage
     log_hint "请在弹窗中授权存储权限，授权完成后按回车继续..."
     read -r
-
-    if [ ! -d "$HOME/storage/shared" ]; then
-        log_error "错误：共享存储目录创建失败！请检查存储权限。"
-        exit 1
-    fi
+    [ ! -d "$HOME/storage/shared" ] && { log_error "错误：共享存储目录创建失败！请检查存储权限。"; exit 1; }
     log_success "共享存储目录设置完成！"
 }
 
 ensure_backup_script() {
     [ -f "$BACKUP_SCRIPT" ] && return 0
-
     log_notice "首次使用：正在创建备份脚本..."
     cat >"$BACKUP_SCRIPT"<<'EOF'
 #!/bin/bash
@@ -136,7 +120,6 @@ cd "$HOME"
 rm -rf "$tmp_dir"
 echo "== 备份流程结束 =="
 EOF
-
     chmod +x "$BACKUP_SCRIPT"
     log_success "备份脚本初始化完成！"
 }
@@ -144,41 +127,22 @@ EOF
 check_tools() {
     print_section "检查必要工具"
     local missing_tools=()
-
     for tool in "${REQUIRED_TOOLS[@]}"; do
-        local cmd="$tool"
-        [ "$tool" = "nodejs-lts" ] && cmd="node"
-        
-        if command -v "$cmd" >/dev/null 2>&1; then
-            log_success "✓ ${tool} 已安装"
-        else
-            log_warn "⚠ ${tool} 未安装，准备安装..."
-            missing_tools+=("$tool")
-        fi
+        local cmd="$tool"; [ "$tool" = "nodejs-lts" ] && cmd="node"
+        command -v "$cmd" >/dev/null 2>&1 && log_success "✓ ${tool} 已安装" || { log_warn "⚠ ${tool} 未安装，准备安装..."; missing_tools+=("$tool"); }
     done
-
     if [ ${#missing_tools[@]} -gt 0 ]; then
         log_notice "正在安装缺失的工具..."
         pkg install -y "${missing_tools[@]}" || { log_error "✗ 工具安装失败"; return 1; }
     fi
-
     log_success "工具检查完成！已安装: ${#REQUIRED_TOOLS[@]} 个"
 }
 
 check_tools_manual() {
     print_section "工具检测"
-    
-    if confirm_choice "检测前是否更新系统包? (y/n): "; then
-        print_section "更新系统包"
-        log_notice "正在更新系统包，请稍候..."
-        if ! (pkg update -y && pkg upgrade -y); then
-            log_error "❌ 系统包更新失败！"
-            confirm_choice "是否继续工具检测? (y/n): " || { log_notice "取消工具检测，返回主菜单"; return 0; }
-        fi
-    else
+    confirm_choice "检测前是否更新系统包? (y/n): " &&
+        { print_section "更新系统包"; log_notice "正在更新系统包，请稍候..."; (pkg update -y && pkg upgrade -y) || { log_error "❌ 系统包更新失败！"; confirm_choice "是否继续工具检测? (y/n): " || { log_notice "取消工具检测，返回主菜单"; return 0; }; }; } ||
         log_notice "跳过系统包更新"
-    fi
-    
     check_tools
 }
 
@@ -188,37 +152,27 @@ check_tools_manual() {
 
 deploy_sillytavern() {
     print_section "部署酒馆"
-
     if [ -d "$SILLYTAVERN_DIR" ]; then
         log_warn "检测到已有 SillyTavern 目录"
         confirm_choice "重新部署? (y/n): " || { log_notice "取消部署"; return 0; }
         log_notice "清理旧目录..."
         rm -rf "$SILLYTAVERN_DIR"
     fi
-
     if confirm_choice "部署前是否更新系统包? (y/n): "; then
         print_section "更新系统包"
         log_notice "正在更新系统包，请稍候..."
-        if ! (pkg update -y && pkg upgrade -y); then
-            log_error "❌ 系统包更新失败！"
-            confirm_choice "是否继续部署? (y/n): " || { log_notice "取消部署，返回主菜单"; return 1; }
-        fi
+        (pkg update -y && pkg upgrade -y) || { log_error "❌ 系统包更新失败！"; confirm_choice "是否继续部署? (y/n): " || { log_notice "取消部署，返回主菜单"; return 1; }; }
     else
         log_notice "跳过系统包更新"
     fi
-
     if confirm_choice "克隆前是否检测工具是否安装? (y/n): "; then
         check_tools || { log_error "工具安装失败，部署取消！"; return 1; }
     else
         log_notice "跳过工具检测"
     fi
-
     log_notice "准备克隆仓库..."
     log_hint "提示：按 CTRL+C 可中断克隆过程"
-
-    trap 'log_error "\n检测到中断信号！已取消克隆。"; return 1' INT
     git clone "$REPO_URL" -b "$REPO_BRANCH" "$SILLYTAVERN_DIR" && log_success "✅ 酒馆部署完成！" || log_error "❌ 酒馆克隆失败！"
-    trap - INT
 }
 
 start_sillytavern() {
@@ -232,20 +186,14 @@ update_sillytavern() {
     print_section "更新酒馆"
     [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "酒馆目录不存在，无法更新。"; return 1; }
     [ ! -d "$SILLYTAVERN_DIR/.git" ] && { log_error "检测到目录 $SILLYTAVERN_DIR 不是 Git 仓库，无法执行更新。"; return 1; }
-    
     git -C "$SILLYTAVERN_DIR" pull --rebase --autostash && log_success "酒馆更新完成！" || log_error "酒馆更新失败！"
 }
 
 delete_sillytavern() {
     print_section "删除酒馆"
     [ ! -d "$SILLYTAVERN_DIR" ] && { log_notice "酒馆目录不存在，无需删除。"; return 0; }
-
     log_warn "警告：此操作将永久删除 SillyTavern 目录及其所有内容！"
-    if confirm_choice "确认删除? (y/n): "; then
-        rm -rf "$SILLYTAVERN_DIR" && log_success "酒馆删除完成！" || log_error "酒馆删除失败！"
-    else
-        log_notice "取消删除"
-    fi
+    confirm_choice "确认删除? (y/n): " && { rm -rf "$SILLYTAVERN_DIR" && log_success "酒馆删除完成！" || log_error "酒馆删除失败！"; } || log_notice "取消删除"
 }
 
 backup_sillytavern() {
@@ -256,78 +204,56 @@ backup_sillytavern() {
 
 restore_sillytavern() {
     print_section "恢复酒馆"
-    
     trap 'log_error "\n检测到中断信号！正在清理临时目录..."; rm -rf "$TMP_RESTORE_DIR"; exit 1' INT
-    
-    [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "SillyTavern目录不存在，请先部署SillyTavern！"; trap - INT; return 1; }
-    
-    local data_dir="$SILLYTAVERN_DIR/data"
-    [ ! -d "$data_dir" ] && { log_warn "data目录不存在，将自动创建"; mkdir -p "$data_dir"; }
-    
+    trap 'trap - INT' RETURN
+    [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "SillyTavern目录不存在，请先部署SillyTavern！"; return 1; }
+    [ ! -d "$DATA_DIR" ] && { log_warn "data目录不存在，将自动创建"; mkdir -p "$DATA_DIR"; }
     log_warn "警告：此操作将永久删除当前的data目录并恢复备份！"
-    confirm_choice "确定要继续恢复备份吗？(y/n): " || { log_notice "已取消恢复操作，请返回主菜单"; trap - INT; return 0; }
-    
-    [ ! -d "$BACKUP_DIR" ] && { log_error "备份目录不存在: $BACKUP_DIR"; log_hint "请先创建备份后再尝试恢复"; trap - INT; return 1; }
-    
-    local latest_backup=$(find "$BACKUP_DIR" -name "sillytavern_backup_*.zip" -type f -printf "%T@ %p\n" 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
-    [ -z "$latest_backup" ] && { log_error "未找到任何备份文件！"; trap - INT; return 1; }
-    
+    confirm_choice "确定要继续恢复备份吗？(y/n): " || { log_notice "已取消恢复操作，请返回主菜单"; return 0; }
+    [ ! -d "$BACKUP_DIR" ] && { log_error "备份目录不存在: $BACKUP_DIR"; log_hint "请先创建备份后再尝试恢复"; return 1; }
+    local latest_backup
+    latest_backup=$(find "$BACKUP_DIR" -name "sillytavern_backup_*.zip" -type f -printf "%T@ %p\n" 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
+    [ -z "$latest_backup" ] && { log_error "未找到任何备份文件！"; return 1; }
     log_success "找到最新备份: $(basename "$latest_backup")"
     log_notice "正在删除当前data目录..."
-    rm -rf "$data_dir"
-    
-    rm -rf "$TMP_RESTORE_DIR"
-    mkdir -p "$TMP_RESTORE_DIR"
-    
+    rm -rf "$DATA_DIR"
+    rm -rf "$TMP_RESTORE_DIR"; mkdir -p "$TMP_RESTORE_DIR"
     log_notice "正在解压备份文件..."
-    unzip -q "$latest_backup" -d "$TMP_RESTORE_DIR" || { log_error "解压备份文件失败！"; rm -rf "$TMP_RESTORE_DIR"; trap - INT; return 1; }
-    
+    unzip -q "$latest_backup" -d "$TMP_RESTORE_DIR" || { log_error "解压备份文件失败！"; rm -rf "$TMP_RESTORE_DIR"; return 1; }
     local extracted_data="$TMP_RESTORE_DIR/data"
-    [ ! -d "$extracted_data" ] && { log_error "备份文件格式错误：未找到data目录！"; rm -rf "$TMP_RESTORE_DIR"; trap - INT; return 1; }
-    
+    [ ! -d "$extracted_data" ] && { log_error "备份文件格式错误：未找到data目录！"; rm -rf "$TMP_RESTORE_DIR"; return 1; }
     log_notice "正在恢复数据..."
-    if mv "$extracted_data" "$data_dir"; then
+    if mv "$extracted_data" "$DATA_DIR"; then
         log_success "✅ 备份恢复成功！"
         rm -rf "$TMP_RESTORE_DIR"
         log_hint "恢复完成！您可以启动SillyTavern查看恢复的数据"
     else
         log_error "❌ 数据恢复失败！"
         rm -rf "$TMP_RESTORE_DIR"
-        trap - INT
         return 1
     fi
-    trap - INT
 }
 
 rollback_sillytavern() {
     print_section "回退酒馆"
     [ ! -d "$SILLYTAVERN_DIR" ] && { log_error "酒馆目录不存在，无法回退版本。"; return 1; }
     [ ! -d "$SILLYTAVERN_DIR/.git" ] && { log_error "检测到目录 $SILLYTAVERN_DIR 不是 Git 仓库，无法执行版本回退。"; return 1; }
-
-    local current_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
+    local current_version
+    current_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
     log_notice "当前版本: $current_version"
-
     log_warn "版本切换前建议备份重要数据！"
     confirm_choice "是否继续回退版本？(y/n): " || { log_notice "取消版本回退"; return 0; }
-
-    log_hint "提示："
-    log_hint "  - 输入具体的版本号（如 1.13.4）"
-    log_hint "  - 输入 commit hash（如 a1b2c3d）"
-    log_hint "  - 输入 release 回到最新稳定版"
+    log_hint "提示："; log_hint "  - 输入具体的版本号（如 1.13.4）"; log_hint "  - 输入 commit hash（如 a1b2c3d）"; log_hint "  - 输入 release 回到最新稳定版"
     log_prompt "请输入要回退到的版本: "
     read -r target_version
-
     [ -z "$target_version" ] && { log_error "版本号不能为空！"; return 1; }
-
     log_notice "正在切换到版本: $target_version"
     if git -C "$SILLYTAVERN_DIR" checkout "$target_version"; then
-        local new_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
-        log_success "✅ 版本回退成功！"
-        log_success "当前版本: $new_version"
+        local new_version
+        new_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
+        log_success "✅ 版本回退成功！"; log_success "当前版本: $new_version"
     else
-        log_error "❌ 版本回退失败！"
-        log_error "请检查版本号是否正确，或网络连接是否正常。"
-        return 1
+        log_error "❌ 版本回退失败！"; log_error "请检查版本号是否正确，或网络连接是否正常。"; return 1
     fi
 }
 
@@ -356,20 +282,19 @@ main() {
     ensure_termux_font
     ensure_termux_storage
     ensure_backup_script
-
     while true; do
         show_menu
         read -r choice
         case "$choice" in
             0) clear; exit 0 ;;
-            1) deploy_sillytavern;   press_any_key ;;
-            2) start_sillytavern;    press_any_key ;;
-            3) update_sillytavern;   press_any_key ;;
-            4) delete_sillytavern;   press_any_key ;;
-            5) backup_sillytavern;   press_any_key ;;
-            6) restore_sillytavern;  press_any_key ;;
-            7) rollback_sillytavern; press_any_key ;;
-            8) check_tools_manual;   press_any_key ;;
+            1) run deploy_sillytavern ;;
+            2) run start_sillytavern ;;
+            3) run update_sillytavern ;;
+            4) run delete_sillytavern ;;
+            5) run backup_sillytavern ;;
+            6) run restore_sillytavern ;;
+            7) run rollback_sillytavern ;;
+            8) run check_tools_manual ;;
             *) log_error "无效选择，请重新输入！"; sleep 1 ;;
         esac
     done
