@@ -33,11 +33,11 @@ declare -r DATA_DIR="$SILLYTAVERN_DIR/data"
 # 日志 / 输出工具
 ###############################################
 print_section() { printf "%b\n" "${CYAN}${BOLD}==== $1 ====${NC}"; }
-log_success()   { printf "%b\n" "${GREEN}$1${NC}"; }
-log_notice()    { printf "%b\n" "${YELLOW}$1${NC}"; }
-log_warn()      { printf "%b\n" "${YELLOW}${BOLD}$1${NC}"; }
+log_success()   { printf "%b\n" "${BRIGHT_GREEN}$1${NC}"; }
+log_notice()    { printf "%b\n" "${TEAL}$1${NC}"; }
+log_warn()      { printf "%b\n" "${ORANGE}${BOLD}$1${NC}"; }
 log_error()     { printf "%b\n" "${BRIGHT_RED}${BOLD}$1${NC}"; }
-log_hint()      { printf "%b\n" "${CYAN}$1${NC}"; }
+log_hint()      { printf "%b\n" "${PURPLE}$1${NC}"; }
 log_prompt()    { printf "%b" "${BRIGHT_CYAN}${BOLD}$1${NC}"; }
 
 ###############################################
@@ -48,39 +48,24 @@ confirm_choice() {
     while true; do
         log_prompt "$1"
         read -r input
-        case "${input,,}" in
-            y|yes) return 0 ;;
-            n|no)  return 1 ;;
-            *)     log_warn "请输入 y/yes 或 n/no！" ;;
-        esac
+        [[ "${input,,}" =~ ^y(es)?$ ]] && return 0
+        [[ "${input,,}" =~ ^n(o)?$ ]] && return 1
+        log_warn "请输入 y/yes 或 n/no！"
     done
 }
 
 press_any_key() { 
     log_notice "按任意键返回菜单..."
-    # 重置终端并清理残留输入
-    stty sane 2>/dev/null || true
     while read -r -t 0; do read -r; done 2>/dev/null || true
     read -rsn1 2>/dev/null || true
 }
 
 run() { 
     local exit_code=0
-    
-    # 捕获 INT 信号，防止脚本直接退出
-    # 子进程仍可接收信号并正常终止
     trap ':' INT
-    
     "$@" || exit_code=$?
-    
-    # 恢复默认信号处理
     trap - INT
-    
-    # 130 是 SIGINT 的标准退出码
-    if (( exit_code == 130 )); then
-        log_warn "操作被用户中断"
-    fi
-    
+    (( exit_code == 130 )) && log_warn "操作被用户中断"
     press_any_key
 }
 
@@ -129,12 +114,6 @@ timestamp=$(date +%Y%m%d_%H%M%S)
 backup_name="sillytavern_backup_$timestamp.zip"
 backup_path="$backup_dir/$backup_name"
 
-cleanup() {
-    [[ -d "$tmp_dir" ]] && rm -rf "$tmp_dir" && echo "✓ 临时目录已清理"
-    [[ -f "$backup_path" ]] && [[ ! -s "$backup_path" ]] && rm -f "$backup_path" && echo "✓ 未完成的备份文件已清理"
-}
-trap 'echo -e "\n❌ 检测到中断信号！"; cleanup; echo "== 备份已取消 =="; exit 130' INT TERM
-
 echo "====================================="
 echo "  SillyTavern 数据备份工具"
 echo "====================================="
@@ -152,13 +131,13 @@ mkdir -p "$tmp_dir" || { echo "❌ 错误：无法创建临时目录！"; exit 1
 echo "✓ 临时目录准备完成"
 
 echo "[2/4] 正在拷贝数据到临时目录..."
-cp -r "$src_dir" "$tmp_dir/data" || { echo "❌ 拷贝失败！"; cleanup; exit 1; }
+cp -r "$src_dir" "$tmp_dir/data" || { echo "❌ 拷贝失败！"; rm -rf "$tmp_dir"; exit 1; }
 echo "✓ 数据拷贝完成"
 
-cd "$tmp_dir" || { echo "❌ 无法进入临时目录！"; cleanup; exit 1; }
+cd "$tmp_dir" || { echo "❌ 无法进入临时目录！"; rm -rf "$tmp_dir"; exit 1; }
 
 echo "[3/4] 正在压缩备份文件..."
-zip -r "$backup_path" "data" >/dev/null 2>&1 || { echo "❌ 压缩失败！"; cleanup; exit 1; }
+zip -r "$backup_path" "data" >/dev/null 2>&1 || { echo "❌ 压缩失败！"; cd "$HOME"; rm -rf "$tmp_dir"; exit 1; }
 echo "✓ 压缩完成"
 
 echo "[4/4] 正在清理临时目录..."
@@ -174,8 +153,6 @@ echo "备份文件: $backup_name"
 echo "保存位置: $backup_dir"
 echo "文件大小: $(du -h "$backup_path" | cut -f1)"
 echo "====================================="
-
-trap - INT TERM
 EOF
     chmod +x "$BACKUP_SCRIPT"
     log_success "备份脚本初始化完成！"
@@ -253,7 +230,7 @@ deploy_sillytavern() {
     fi
 
     log_notice "准备克隆仓库..."
-    log_hint "提示：按 CTRL+C 可中断克隆过程"
+    log_hint "${ORANGE}提示：按 CTRL+C 可中断克隆过程${NC}"
     if git clone "$REPO_URL" -b "$REPO_BRANCH" "$SILLYTAVERN_DIR"; then
         log_success "✅ 酒馆部署完成！"
     else
@@ -314,7 +291,7 @@ restore_sillytavern() {
     latest_backup=$(ls -t "${backups[@]}" 2>/dev/null | head -n1)
     [[ -n "$latest_backup" ]] || { log_error "未找到任何备份文件！"; return 1; }
     
-    log_success "找到最新备份: $(basename -- "$latest_backup")"
+    log_success "找到最新备份: ${BRIGHT_CYAN}$(basename -- "$latest_backup")${NC}"
 
     log_notice "正在删除当前data目录..."
     rm -rf -- "$DATA_DIR"
@@ -339,7 +316,7 @@ rollback_sillytavern() {
 
     local current_version
     current_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
-    log_notice "当前版本: $current_version"
+    log_notice "当前版本: ${BRIGHT_GREEN}$current_version${NC}"
 
     log_warn "版本切换前建议备份重要数据！"
     confirm_choice "是否继续回退版本？(y/n): " || { log_notice "取消版本回退"; return 0; }
@@ -359,7 +336,7 @@ rollback_sillytavern() {
         local new_version
         new_version=$(git -C "$SILLYTAVERN_DIR" describe --tags --abbrev=0 2>/dev/null || git -C "$SILLYTAVERN_DIR" rev-parse --short HEAD)
         log_success "✅ 版本回退成功！"
-        log_success "当前版本: $new_version"
+        log_success "当前版本: ${BRIGHT_GREEN}$new_version${NC}"
     else
         log_error "❌ 版本回退失败！"
         log_error "请检查版本号是否正确，或网络连接是否正常。"
