@@ -161,7 +161,7 @@ EOF
 update_system() {
     print_section "更新系统包"
     log_notice "正在更新系统包，请稍候..."
-    (pkg update -y && pkg upgrade -y) || { log_error "❌ 系统包更新失败！"; return 1; }
+    (pkg update && pkg upgrade -y) || { log_error "❌ 系统包更新失败！"; return 1; }
     log_success "系统包更新完成！"
 }
 
