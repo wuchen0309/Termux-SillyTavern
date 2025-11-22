@@ -99,24 +99,6 @@ $HOME/menu.sh
 curl -o $HOME/menu.sh "https://raw.githubusercontent.com/wuchen0309/Termux-SillyTavern/refs/heads/main/menu.sh" && chmod +x $HOME/menu.sh
 ```
 
-## ⚠️ 注意事项
-
-**备份目录配置**
-
-如需修改备份目录名称，必须同时修改两个位置：
-
-主菜单脚本（`$HOME/menu.sh`）：
-```bash
-BACKUP_DIR="$HOME/storage/shared/MySillyTavernBackups"
-```
-
-备份脚本（`$HOME/backup_sillytavern.sh`）：
-```bash
-backup_dir="$HOME/storage/shared/MySillyTavernBackups"
-```
-
-两处路径必须完全一致，否则恢复功能无法找到备份文件。
-
 **中断安全**
 
 部署和恢复操作支持 Ctrl+C 中断，脚本会自动清理临时文件。
