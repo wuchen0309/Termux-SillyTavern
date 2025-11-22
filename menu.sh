@@ -103,13 +103,15 @@ ensure_termux_storage() {
 }
 
 ensure_backup_script() {
-    [[ -f "$BACKUP_SCRIPT" ]] && return 0
-    log_notice "首次使用：正在创建备份脚本..."
-    cat >"$BACKUP_SCRIPT"<<'EOF'
+    cat >"$BACKUP_SCRIPT" <<EOF
 #!/usr/bin/env bash
-src_dir="$HOME/SillyTavern/data/"
-tmp_dir="$HOME/tmp_sillytavern_backup_copy"
-backup_dir="$HOME/storage/shared/MySillyTavernBackups"
+src_dir="${DATA_DIR}"
+backup_dir="${BACKUP_DIR}"
+tmp_dir="${HOME}/tmp_sillytavern_backup_copy"
+
+EOF
+
+    cat >>"$BACKUP_SCRIPT" <<'EOF'
 timestamp=$(date +%Y%m%d_%H%M%S)
 backup_name="sillytavern_backup_$timestamp.zip"
 backup_path="$backup_dir/$backup_name"
@@ -155,7 +157,6 @@ echo "文件大小: $(du -h "$backup_path" | cut -f1)"
 echo "====================================="
 EOF
     chmod +x "$BACKUP_SCRIPT"
-    log_success "备份脚本初始化完成！"
 }
 
 update_system() {
